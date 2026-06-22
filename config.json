@@ -1,0 +1,14 @@
+{
+  "smtp_server": "smtp.gmail.com",
+  "smtp_port": 587,
+  "email_sender": "notificationsping@gmail.com",
+  "email_password": "pkenujqpokhzoedz",
+  "email_receiver": "renzzog77@gmail.com",
+  "ping_interval_seconds": 15,
+  "ips_to_monitor": [
+    "8.8.8.8",
+    "1.1.1.1",
+    "192.168.1.1",
+    "192.168.1.254"
+  ]
+}
