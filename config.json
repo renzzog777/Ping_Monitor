@@ -2,7 +2,7 @@
   "smtp_server": "smtp.gmail.com",
   "smtp_port": 587,
   "email_sender": "notificationsping@gmail.com",
-  "email_password": "pkenujqpokhzoedz",
+  "email_password": "xxxxxxxxxxx",
   "email_receiver": "renzzog77@gmail.com",
   "ping_interval_seconds": 15,
   "ips_to_monitor": {
