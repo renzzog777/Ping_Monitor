@@ -28,29 +28,29 @@ except Exception as e:
     logging.error(f"Error loading config.json: {e}")
     sys.exit(1)
 
-# Initialize states in memory with a tracking timestamp for reminders
+# Initialize states in memory mapping IP to Alias and runtime metrics
 ip_states = {
     ip: {
+        "alias": alias,
         "status": "UP", 
         "down_since": None, 
         "alert_sent": False, 
-        "last_alert_time": None, # Tracks when the last email went out
+        "last_alert_time": None, 
         "last_latency": "N/A"
     }
-    for ip in config["ips_to_monitor"]
+    for ip, alias in config["ips_to_monitor"].items()
 }
 
-def send_email_alert(ip, status, duration=None, is_reminder=False):
-    # Differentiate subject line if it's a 30-minute reminder
+def send_email_alert(ip, alias, status, duration=None, is_reminder=False):
     if is_reminder:
-        subject = f"[ALERTA RED] [RECORDATORIO] La IP {ip} SIGUE CAÍDA"
-        body = f"La dirección IP {ip} continúa sin responder.\nTiempo total caído hasta ahora: {duration}.\nÚltima comprobación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        subject = f"[NETWORK ALERT] [REMINDER] {alias} ({ip}) IS STILL DOWN"
+        body = f"System: {alias}\nIP Address: {ip}\nStatus: Continues to be unresponsive.\nTotal downtime so far: {duration}.\nLast check: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     elif status == "DOWN":
-        subject = f"[ALERTA RED] La IP {ip} está DOWN"
-        body = f"La dirección IP {ip} ha dejado de responder por más de 5 minutos.\nCaída detectada el: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        subject = f"[NETWORK ALERT] {alias} ({ip}) is DOWN"
+        body = f"System: {alias}\nIP Address: {ip}\nStatus: Stopped responding for more than 5 minutes.\nDowntime detected on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     else:
-        subject = f"[ALERTA RED] La IP {ip} se ha RECUPERADO"
-        body = f"La dirección IP {ip} se ha restablecido con éxito.\nEstuvo fuera de servicio por: {duration}.\nHora de recuperación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        subject = f"[NETWORK ALERT] {alias} ({ip}) has RECOVERED"
+        body = f"System: {alias}\nIP Address: {ip}\nStatus: Successfully restored.\nOffline duration: {duration}.\nRecovery time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -62,7 +62,7 @@ def send_email_alert(ip, status, duration=None, is_reminder=False):
             server.starttls()
             server.login(config["email_sender"], config["email_password"])
             server.sendmail(config["email_sender"], config["email_receiver"], msg.as_string())
-        logging.info(f"Email notification sent for {ip} (Status: {status}, Reminder: {is_reminder}).")
+        logging.info(f"Email alert sent for {alias} ({ip}) [Status: {status}, Reminder: {is_reminder}].")
     except Exception as e:
         logging.error(f"Error sending email alert for {ip}: {e}")
 
@@ -93,14 +93,14 @@ def check_pool():
     for ip, is_up, latency in results:
         state = ip_states[ip]
         state["last_latency"] = latency
+        alias = state["alias"]
 
         if is_up:
             if state["status"] == "DOWN":
-                logging.info(f"[RECUPERADO] {ip} is back online.")
+                logging.info(f"[RECOVERED] {alias} ({ip}) is back online.")
                 if state["alert_sent"]:
-                    # Calculate total downtime duration
                     down_duration = str(datetime.now() - datetime.fromtimestamp(state["down_since"])).split('.')[0]
-                    send_email_alert(ip, "UP", duration=down_duration)
+                    send_email_alert(ip, alias, "UP", duration=down_duration)
             state["status"] = "UP"
             state["down_since"] = None
             state["alert_sent"] = False
@@ -110,28 +110,23 @@ def check_pool():
                 state["status"] = "DOWN"
                 state["down_since"] = current_time
                 state["last_alert_time"] = None
-                logging.warning(f"[CAÍDA] {ip} stopped responding.")
+                logging.warning(f"[DOWN] {alias} ({ip}) stopped responding.")
             
-            # Handle Down States and Reminders
             elif state["status"] == "DOWN":
                 total_down_time = current_time - state["down_since"]
                 
-                # 1. Initial Alert after 5 minutes (300 seconds)
                 if not state["alert_sent"]:
                     if total_down_time >= 300:
                         state["alert_sent"] = True
                         state["last_alert_time"] = current_time
-                        send_email_alert(ip, "DOWN")
-                
-                # 2. Sequential Reminders every 30 minutes (1800 seconds)
+                        send_email_alert(ip, alias, "DOWN")
                 else:
                     time_since_last_alert = current_time - state["last_alert_time"]
-                    if time_since_last_alert >= 1800: # 30 minutes
+                    if time_since_last_alert >= 1800: 
                         state["last_alert_time"] = current_time
                         readable_duration = str(datetime.now() - datetime.fromtimestamp(state["down_since"])).split('.')[0]
-                        send_email_alert(ip, "DOWN", duration=readable_duration, is_reminder=True)
+                        send_email_alert(ip, alias, "DOWN", duration=readable_duration, is_reminder=True)
 
-    # Push to RAM layout for Dashboard.py
     try:
         with open(STATUS_RAM_FILE, "w") as f:
             json.dump(ip_states, f)
@@ -139,7 +134,7 @@ def check_pool():
         logging.error(f"Error writing status payload to RAM: {e}")
 
 if __name__ == "__main__":
-    logging.info("Starting Ping Monitoring Core 24/7 with 30-min reminders...")
+    logging.info("Starting Ping Monitoring Core with Alias Support...")
     while True:
         check_pool()
         time.sleep(config["ping_interval_seconds"])
