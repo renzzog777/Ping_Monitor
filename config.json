@@ -5,10 +5,10 @@
   "email_password": "pkenujqpokhzoedz",
   "email_receiver": "renzzog77@gmail.com",
   "ping_interval_seconds": 15,
-  "ips_to_monitor": [
-    "8.8.8.8",
-    "1.1.1.1",
-    "192.168.1.1",
-    "192.168.1.254"
-  ]
+  "ips_to_monitor": {
+    "8.8.8.8": "Google Primary DNS",
+    "1.1.1.1": "Cloudflare Gateway",
+    "192.168.1.1": "Main Office Router",
+    "192.168.1.254": "Core Switch Stack"
+  }
 }
