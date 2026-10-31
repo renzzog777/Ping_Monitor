@@ -298,14 +298,13 @@ PAGE = """<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&display=swap">
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--text:#1d2329;--muted:#66707a;--border:#e1e4e8;--up:#1a7f37;--down:#cf222e;--warn:#9a6700;--line:#2563eb;--accent:#7c3aed;--grid:#eceff2}
-@media (prefers-color-scheme: dark){:root{--bg:#0f1216;--card:#181c22;--text:#e6e9ed;--muted:#97a0aa;--border:#2a3038;--up:#3fb950;--down:#f85149;--warn:#d29922;--line:#60a5fa;--accent:#a78bfa;--grid:#252a31}}
+:root{--bg:#f5f6f8;--card:#fff;--text:#1d2329;--muted:#66707a;--border:#e1e4e8;--up:#1a7f37;--down:#cf222e;--warn:#9a6700;--line:#2563eb;--title:#1e293b;--grid:#eceff2}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1216;--card:#181c22;--text:#e6e9ed;--muted:#97a0aa;--border:#2a3038;--up:#3fb950;--down:#f85149;--warn:#d29922;--line:#60a5fa;--title:#e2e8f0;--grid:#252a31}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
 header{display:flex;flex-direction:column;align-items:center;gap:16px;margin:8px 0 22px}
-h1{font-family:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:800;font-size:clamp(34px,7vw,52px);line-height:1.1;letter-spacing:-.02em;text-align:center;margin:0;
-  color:var(--line);background:linear-gradient(90deg,var(--line),var(--accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+h1{font-family:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:700;font-size:clamp(34px,7vw,52px);line-height:1.1;letter-spacing:-.01em;text-align:center;margin:0;color:var(--title)}
 h2{font-size:17px;margin:28px 0 10px}
 .muted{color:var(--muted)}
 .banner{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:600;display:none}
@@ -384,8 +383,7 @@ footer{margin-top:20px;font-size:13px}
 </main>
 <script>
 const RANGES = {"1h": 1, "24h": 24, "7d": 168, "30d": 720};
-let range = "24h";
-try { range = localStorage.getItem("range") in RANGES ? localStorage.getItem("range") : "24h"; } catch (e) {}
+let range = "1h";
 let status = null, history = {};
 
 const $ = id => document.getElementById(id);
@@ -412,7 +410,7 @@ function stateOf(t) {
 for (const key of Object.keys(RANGES)) {
   const b = document.createElement("button");
   b.textContent = key;
-  b.onclick = () => { range = key; try { localStorage.setItem("range", key); } catch (e) {} renderRanges(); refreshHistory(); };
+  b.onclick = () => { range = key; renderRanges(); refreshHistory(); };
   $("ranges").appendChild(b);
 }
 function renderRanges() {
