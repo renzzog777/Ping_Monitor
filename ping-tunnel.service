@@ -1,0 +1,14 @@
+[Unit]
+Description=Ping Monitor Public Dashboard (Cloudflare Quick Tunnel)
+After=network-online.target ping-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=renzzo
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --metrics 127.0.0.1:20241 --url http://127.0.0.1:5000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

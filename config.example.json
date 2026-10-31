@@ -1,0 +1,33 @@
+{
+  "smtp_server": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_timeout_seconds": 20,
+  "email_sender": "your_bot_email@gmail.com",
+  "email_password": "your16charapppassword",
+  "email_receiver": "your_personal_alerts@gmail.com",
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+  "ping_interval_seconds": 15,
+  "ping_count": 3,
+  "ping_timeout_seconds": 2,
+  "fail_threshold": 2,
+  "alert_after_seconds": 300,
+  "reminder_interval_seconds": 1800,
+  "reference_hosts": [
+    "1.1.1.1",
+    "8.8.8.8",
+    "9.9.9.9"
+  ],
+  "history_flush_seconds": 300,
+  "history_retention_days": 90,
+  "daily_summary_time": "08:00",
+  "web_host": "0.0.0.0",
+  "web_port": 5000,
+  "web_username": "admin",
+  "web_password": "choose-a-strong-password",
+  "tunnel_metrics_url": "http://127.0.0.1:20241/quicktunnel",
+  "ips_to_monitor": {
+    "8.8.8.8": "Google DNS",
+    "192.168.1.1": "Office Router"
+  }
+}

@@ -1,0 +1,5 @@
+config.json
+ping_monitor.log*
+ping_history.db*
+venv/
+__pycache__/

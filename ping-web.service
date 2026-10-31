@@ -1,0 +1,14 @@
+[Unit]
+Description=Ping Monitor Web Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=renzzo
+WorkingDirectory=/home/renzzo/ping_project
+ExecStart=/home/renzzo/ping_project/venv/bin/python web.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
