@@ -26,6 +26,9 @@
   "web_username": "admin",
   "web_password": "choose-a-strong-password",
   "tunnel_metrics_url": "http://127.0.0.1:20241/quicktunnel",
+  "other_tunnels": {
+    "Onboarding App": "http://127.0.0.1:20242/quicktunnel"
+  },
   "ips_to_monitor": {
     "165.140.123.8": "VPN LA3",
     "155.204.24.5": "VPN NY",

@@ -47,7 +47,13 @@ last_flush = time.time()
 last_prune_day = None
 last_summary_date = None
 last_tunnel_check = 0
-tunnel_url = None
+tunnel_url = None  # The dashboard's own public address, shown in its footer
+site_urls = {}  # Site name -> last public address emailed
+tunnel_change_pending_since = None
+DASHBOARD_SITE = "Ping Monitor dashboard"
+# After a restart every tunnel gets a new address, but they don't all come up
+# at the same moment: wait this long for the rest so one email covers them all.
+TUNNEL_SETTLE_SECONDS = 180
 
 
 def format_duration(seconds):
@@ -424,37 +430,93 @@ def maybe_send_daily_summary(now):
     notifier.send(f"[NETWORK REPORT] Daily summary {today}", body)
 
 
-# ---------------------------------------------------------------- Public dashboard address
+# ---------------------------------------------------------------- Public addresses
 
-def check_tunnel_url(now):
-    """Emails the dashboard's Cloudflare quick tunnel address whenever it changes (it is new after every restart)."""
-    global last_tunnel_check, tunnel_url
-    metrics_url = config["tunnel_metrics_url"]
-    if not metrics_url or now - last_tunnel_check < 60:
-        return
-    last_tunnel_check = now
+def tunnel_sources():
+    """Site name -> cloudflared metrics URL for every tunnel to report: this
+    dashboard's own (tunnel_metrics_url) plus any in other_tunnels."""
+    sources = {}
+    if config["tunnel_metrics_url"]:
+        sources[DASHBOARD_SITE] = config["tunnel_metrics_url"]
+    for name, metrics_url in (config["other_tunnels"] or {}).items():
+        if metrics_url:
+            sources[name] = metrics_url
+    return sources
+
+
+def read_tunnel_url(metrics_url):
     try:
         with urllib.request.urlopen(metrics_url, timeout=3) as response:
             hostname = json.load(response).get("hostname")
     except Exception:
-        return  # Tunnel not running (yet)
-    if not hostname or f"https://{hostname}" == tunnel_url:
-        return
+        return None  # Tunnel not running (yet)
+    return f"https://{hostname}" if hostname else None
 
-    tunnel_url = f"https://{hostname}"
-    logging.info(f"Public dashboard address: {tunnel_url}")
+
+def meta_key(site):
+    # The dashboard keeps the key older versions used, so an upgrade doesn't
+    # re-send its unchanged address.
+    return "tunnel_url" if site == DASHBOARD_SITE else f"tunnel_url:{site}"
+
+
+def last_known_url(site):
+    if site not in site_urls:
+        try:
+            conn = connect()
+            site_urls[site] = get_meta(conn, meta_key(site))
+            conn.close()
+        except Exception as e:
+            logging.error(f"Error reading saved public address for {site}: {e}")
+            site_urls[site] = None
+    return site_urls[site]
+
+
+def check_tunnel_urls(now):
+    """Emails the public Cloudflare quick tunnel addresses of every configured
+    site whenever any of them changes (they are new after every restart).
+    One email lists all the sites, with the new ones marked."""
+    global last_tunnel_check, tunnel_url, tunnel_change_pending_since
+    sources = tunnel_sources()
+    if not sources or now - last_tunnel_check < 60:
+        return
+    last_tunnel_check = now
+
+    current = {site: read_tunnel_url(metrics_url) for site, metrics_url in sources.items()}
+    changed = [site for site, url in current.items() if url and url != last_known_url(site)]
+    if not changed:
+        tunnel_change_pending_since = None
+        return
+    if any(url is None for url in current.values()):
+        if tunnel_change_pending_since is None:
+            tunnel_change_pending_since = now
+        if now - tunnel_change_pending_since < TUNNEL_SETTLE_SECONDS:
+            return  # Give the other tunnels a moment to come up
+    tunnel_change_pending_since = None
+
     try:
         conn = connect()
         with conn:
-            set_meta(conn, "tunnel_url", tunnel_url)
+            for site in changed:
+                set_meta(conn, meta_key(site), current[site])
         conn.close()
     except Exception as e:
-        logging.error(f"Error saving public dashboard address: {e}")
+        logging.error(f"Error saving public addresses: {e}")
+    for site in changed:
+        site_urls[site] = current[site]
+        logging.info(f"Public address for {site}: {current[site]}")
+    if DASHBOARD_SITE in changed:
+        tunnel_url = current[DASHBOARD_SITE]
+
+    lines = []
+    for site, url in current.items():
+        if url is None:
+            url = f"not reachable right now (last known: {last_known_url(site) or 'none'})"
+        lines.append(f"{site}{' (NEW)' if site in changed else ''}:\n{url}\n")
+    plural = "es" if len(changed) > 1 else ""
     notifier.send(
-        "[PING MONITOR] New public dashboard address",
-        f"The Ping Monitor dashboard is now available at:\n\n{tunnel_url}\n\n"
-        f"Log in with your dashboard username and password.\n"
-        f"This address changes whenever the tunnel or the Pi restarts; you will get a new email each time.\n"
+        f"[PING MONITOR] New public address{plural}: {', '.join(changed)}",
+        "Current public addresses:\n\n" + "\n".join(lines) + "\n"
+        "These addresses change whenever a tunnel or the device restarts; you will get a new email each time.\n"
         f"Changed at: {now_str()}"
     )
 
@@ -485,7 +547,7 @@ if __name__ == "__main__":
                 flush_history()
             prune_history(started)
             maybe_send_daily_summary(started)
-            check_tunnel_url(started)
+            check_tunnel_urls(started)
             time.sleep(max(0, config["ping_interval_seconds"] - (time.time() - started)))
     finally:
         flush_history()
