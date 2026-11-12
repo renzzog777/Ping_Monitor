@@ -27,7 +27,8 @@
   "web_password": "choose-a-strong-password",
   "tunnel_metrics_url": "http://127.0.0.1:20241/quicktunnel",
   "ips_to_monitor": {
-    "8.8.8.8": "Google DNS",
-    "192.168.1.1": "Office Router"
+    "165.140.123.8": "VPN LA3",
+    "155.204.24.5": "VPN NY",
+    "155.204.24.9": "VPN NY2"
   }
 }
