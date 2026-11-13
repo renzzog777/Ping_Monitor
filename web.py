@@ -108,17 +108,17 @@ def api_history():
     since = until - hours * 3600
     bucket = hours * 3600 / CHART_BUCKETS
 
-    # bucket -> [latency sum, latency count, sent, received, checks, successful checks]
+    # bucket -> [latency sum, latency count, sent, received, checks, successful checks, min latency, max latency]
     buckets = {}
     last_saved = since
     with closing(connect()) as conn:
         rows = conn.execute(
             "SELECT CAST((ts - ?) / ? AS INTEGER) AS b, SUM(avg_ms), COUNT(avg_ms), SUM(sent), SUM(received), "
-            "COUNT(*), SUM(received > 0), MAX(ts) FROM samples WHERE ip = ? AND ts >= ? GROUP BY b",
+            "COUNT(*), SUM(received > 0), MIN(avg_ms), MAX(avg_ms), MAX(ts) FROM samples WHERE ip = ? AND ts >= ? GROUP BY b",
             (since, bucket, ip, since),
         )
-        for b, lat_sum, lat_n, sent, received, checks, ok, max_ts in rows:
-            buckets[b] = [lat_sum or 0.0, lat_n, sent, received, checks, ok]
+        for b, lat_sum, lat_n, sent, received, checks, ok, lat_min, lat_max, max_ts in rows:
+            buckets[b] = [lat_sum or 0.0, lat_n, sent, received, checks, ok, lat_min, lat_max]
             last_saved = max(last_saved, max_ts)
 
     # Add the most recent checks that the monitor has not written to disk yet
@@ -127,10 +127,12 @@ def api_history():
     for ts, avg_ms, sent, received, *_ in recent:
         if ts <= last_saved:
             continue
-        acc = buckets.setdefault(int((ts - since) / bucket), [0.0, 0, 0, 0, 0, 0])
+        acc = buckets.setdefault(int((ts - since) / bucket), [0.0, 0, 0, 0, 0, 0, None, None])
         if avg_ms is not None:
             acc[0] += avg_ms
             acc[1] += 1
+            acc[6] = avg_ms if acc[6] is None else min(acc[6], avg_ms)
+            acc[7] = avg_ms if acc[7] is None else max(acc[7], avg_ms)
         acc[2] += sent
         acc[3] += received
         acc[4] += 1
@@ -140,10 +142,12 @@ def api_history():
         {
             "ts": since + (b + 0.5) * bucket,
             "avg_ms": lat_sum / lat_n if lat_n else None,
+            "min_ms": lat_min,
+            "max_ms": lat_max,
             "loss_pct": 100.0 * (sent - received) / sent if sent else 0.0,
             "availability": 100.0 * ok / checks,
         }
-        for b, (lat_sum, lat_n, sent, received, checks, ok) in sorted(buckets.items())
+        for b, (lat_sum, lat_n, sent, received, checks, ok, lat_min, lat_max) in sorted(buckets.items())
     ]
     return jsonify(since=since, until=until, bucket_seconds=bucket, points=points)
 
@@ -437,7 +441,7 @@ function card(ip) {
       <div class="stat"><b class="a30d">–</b><span>30 days</span></div>
     </div>
     <canvas></canvas>
-    <div class="legend"><i style="background:var(--line)"></i>Avg latency<i style="background:var(--down);opacity:.45"></i>Packet loss (bar height = %)</div>`;
+    <div class="legend"><i style="background:var(--line)"></i>Avg latency<i style="background:var(--line);opacity:.25"></i>Lowest–highest ping<i style="background:var(--down);opacity:.45"></i>Packet loss (bar height = %)</div>`;
   el.querySelector(".ip").textContent = ip;
   $("cards").appendChild(el);
   return el;
@@ -532,18 +536,25 @@ function drawChart(canvas, data) {
   const css = getComputedStyle(document.documentElement), c = n => css.getPropertyValue(n).trim();
   const L = 46, R = 8, T = 8, B = 20, pw = w - L - R, ph = h - T - B;
   const {since, until, bucket_seconds: bucket, points} = data;
-  const lat = points.map(p => p.avg_ms).filter(v => v != null);
-  const max = niceMax(Math.max(10, ...lat) * 1.1);
+  // Zoom the latency scale to the data (not from 0) so small changes stay visible
+  const lows = points.map(p => p.min_ms ?? p.avg_ms).filter(v => v != null);
+  const highs = points.map(p => p.max_ms ?? p.avg_ms).filter(v => v != null);
+  let lo = lows.length ? Math.min(...lows) : 0, hi = highs.length ? Math.max(...highs) : 10;
+  const span = Math.max(hi - lo, 2);
+  const step = niceMax(span * 1.2 / 4);
+  let min = Math.max(0, Math.floor((lo - span * .1) / step) * step);
+  let max = Math.ceil((hi + span * .1) / step) * step;
+  if (max <= min) max = min + step;
   const x = ts => L + (ts - since) / (until - since) * pw;
-  const y = v => T + ph - v / max * ph;
+  const y = v => T + ph - (v - min) / (max - min) * ph;
 
   ctx.font = "11px system-ui, sans-serif";
   ctx.fillStyle = c("--muted");
   ctx.strokeStyle = c("--grid");
   ctx.lineWidth = 1;
   ctx.textAlign = "right"; ctx.textBaseline = "middle";
-  for (let i = 0; i <= 4; i++) {
-    const v = max * i / 4, yy = Math.round(y(v)) + .5;
+  for (let v = min; v <= max + step / 2; v += step) {
+    const yy = Math.round(y(v)) + .5;
     ctx.beginPath(); ctx.moveTo(L, yy); ctx.lineTo(w - R, yy); ctx.stroke();
     ctx.fillText(`${+v.toFixed(1)} ms`, L - 6, yy);
   }
@@ -571,6 +582,31 @@ function drawChart(canvas, data) {
       const bh = Math.max(2, p.loss_pct / 100 * ph);
       ctx.fillRect(x(p.ts) - bw / 2, T + ph - bh, bw, bh);
     }
+  }
+  ctx.globalAlpha = 1;
+
+  // Shaded band: lowest to highest ping in each period, so short spikes stay visible
+  ctx.fillStyle = c("--line");
+  ctx.globalAlpha = .18;
+  const runs = [];
+  let run = [], last = null;
+  for (const p of points) {
+    if (p.avg_ms == null || p.min_ms == null || p.max_ms == null) { if (run.length) runs.push(run); run = []; last = null; continue; }
+    if (last != null && p.ts - last > bucket * 1.6) { runs.push(run); run = []; }
+    run.push(p); last = p.ts;
+  }
+  if (run.length) runs.push(run);
+  for (const r of runs) {
+    ctx.beginPath();
+    if (r.length === 1) {
+      const p = r[0];
+      ctx.rect(x(p.ts) - bw / 2, y(p.max_ms), bw, Math.max(1, y(p.min_ms) - y(p.max_ms)));
+    } else {
+      r.forEach((p, i) => i ? ctx.lineTo(x(p.ts), y(p.max_ms)) : ctx.moveTo(x(p.ts), y(p.max_ms)));
+      for (let i = r.length - 1; i >= 0; i--) ctx.lineTo(x(r[i].ts), y(r[i].min_ms));
+      ctx.closePath();
+    }
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
 
