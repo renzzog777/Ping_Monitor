@@ -38,6 +38,8 @@ def credentials():
 
 @app.before_request
 def require_login():
+    if request.path == "/favicon.ico" or request.path.startswith("/static/img/"):
+        return None  # Icons are public so the tab icon loads before login
     creds = credentials()
     if creds is None:
         return Response("Configuration error", 503)
@@ -68,6 +70,11 @@ def current_targets(status):
 @app.get("/")
 def index():
     return Response(PAGE, mimetype="text/html")
+
+
+@app.get("/favicon.ico")
+def favicon():
+    return app.send_static_file("favicon.ico")
 
 
 @app.get("/api/status")
@@ -298,9 +305,12 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ping Monitor</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap">
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--text:#1d2329;--muted:#66707a;--border:#e1e4e8;--up:#1a7f37;--down:#cf222e;--warn:#9a6700;--line:#2563eb;--title:#1e293b;--grid:#eceff2}
 @media (prefers-color-scheme: dark){:root{--bg:#0f1216;--card:#181c22;--text:#e6e9ed;--muted:#97a0aa;--border:#2a3038;--up:#3fb950;--down:#f85149;--warn:#d29922;--line:#60a5fa;--title:#e2e8f0;--grid:#252a31}}
@@ -308,7 +318,9 @@ PAGE = """<!doctype html>
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
 header{display:flex;flex-direction:column;align-items:center;gap:16px;margin:8px 0 22px}
-h1{font-family:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:700;font-size:clamp(34px,7vw,52px);line-height:1.1;letter-spacing:-.01em;text-align:center;margin:0;color:var(--title)}
+.brand{display:flex;align-items:center;justify-content:center;gap:14px}
+.logo{width:clamp(44px,9vw,60px);height:auto;flex:none}
+h1{font-family:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:700;font-size:clamp(32px,6.5vw,50px);line-height:1.1;letter-spacing:-.035em;text-align:center;margin:0;color:var(--title)}
 h2{font-size:17px;margin:28px 0 10px}
 .muted{color:var(--muted)}
 .banner{padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:600;display:none}
@@ -349,7 +361,7 @@ footer{margin-top:20px;font-size:13px}
 <body>
 <main>
   <header>
-    <h1>Ping Monitor</h1>
+    <div class="brand"><img class="logo" src="/static/img/logo.svg" alt=""><h1>Ping Monitor</h1></div>
     <div class="ranges" id="ranges"></div>
   </header>
   <div class="banner" id="banner"></div>
