@@ -34,6 +34,7 @@ DEFAULTS = {
     "web_username": "admin",
     "web_password": "",
     "tunnel_metrics_url": "http://127.0.0.1:20241/quicktunnel",
+    "other_tunnels": {},
     "ips_to_monitor": {},
 }
 

@@ -104,6 +104,8 @@ The main settings:
 
     tunnel_metrics_url: Where the monitor reads the Cloudflare quick tunnel address from, to email you when it changes. Use "" to disable.
 
+    other_tunnels: Other sites published through their own Cloudflare quick tunnels on the same machine, as "Site name": "metrics URL" pairs (each tunnel needs its own --metrics port). When any address changes, the dashboard's or one of these, you get one email listing every site's current address, with the new ones marked. Use {} for none.
+
 Any setting left out of config.json uses the default shown in config.example.json.
 
 ⚙️ Daemon Deployment (Systemd)
@@ -157,7 +159,7 @@ Open http://<pi-address>:5000 from any phone or computer on the same network. It
 
 Public Access (Cloudflare Quick Tunnel)
 
-The dashboard can be reached from anywhere through a free Cloudflare quick tunnel, without opening ports on your router. The public address is a random https://<words>.trycloudflare.com that changes every time the tunnel or the Pi restarts; the monitor emails you the new address each time it changes. Always set a web_password before enabling the tunnel.
+The dashboard can be reached from anywhere through a free Cloudflare quick tunnel, without opening ports on your router. The public address is a random https://<words>.trycloudflare.com that changes every time the tunnel or the Pi restarts; the monitor emails you the new address each time it changes (together with the addresses of any other_tunnels). Always set a web_password before enabling the tunnel.
 
     Install cloudflared (32-bit Raspberry Pi OS; check the release page for the current version and its checksum):
 
